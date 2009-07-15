@@ -1,0 +1,37 @@
+$Id: README 8 2005-03-28 13:13:27Z kentaro $
+
+WebService-Hatena-Fotolife version 0.01
+=======================================
+
+DESCRIPTION
+
+WebService::Hatena::Fotolife provides an interface to the Hatena::Fotolife AtomAPI.
+
+This module is a subclass of L<XML::Atom::Client>, so see also the documentation of the baseclass for more usage.
+
+CAVEAT
+
+This module is now in beta version, so the interface it provides may be changed later.
+
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+DEPENDENCIES
+
+This module requires these other modules and libraries:
+
+  - XML::Atom
+  - Image::Info
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2005 by Kentaro Kuribayashi <kentarok@gmail.com>
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
