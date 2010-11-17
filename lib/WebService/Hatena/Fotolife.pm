@@ -1,95 +1,105 @@
-# $Id: Fotolife.pm 7 2005-03-28 13:13:15Z kentaro $
-
 package WebService::Hatena::Fotolife;
-
+use 5.008_001;
 use strict;
 use warnings;
-
 use FileHandle;
 use Image::Info qw(image_info);
+use WebService::Hatena::Fotolife::Entry;
 
-use XML::Atom::Entry;
 use base qw(XML::Atom::Client);
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new {
-	my $class = shift;
-	my $self  = $class->SUPER::new
-		or return $class->error($class->SUPER::errstr);
+    my $class = shift;
+    my $self  = $class->SUPER::new
+        or return $class->error($class->SUPER::errstr);
 
-	$self->{ua}->agent("WebService::Hatena::Fotolife/$VERSION");
-	return $self;
+    $self->{ua}->agent("WebService::Hatena::Fotolife/$VERSION");
+    return $self;
 }
 
 sub createEntry {
-	my ($self, %param) = @_;
+    my ($self, %param) = @_;
 
-	return $self->error('title and image source are both required')
-		unless $param{title} || grep {!$_} @param{qw(filename scalarref)};
+    return $self->error('title and image source are both required')
+        unless $param{title} || grep {!$_} @param{qw(filename scalarref)};
 
-	my $PostURI = 'http://f.hatena.ne.jp/atom/post';
-	my $image = $self->_get_image($param{filename} || $param{scalarref})
-		or return $self->error($self->errstr);
-	my $entry = XML::Atom::Entry->new;
-	   $entry->title($self->_encode($param{title}));
-	   $entry->content(${$image->{content}});
-	   $entry->content->type($image->{content_type});
+    my $PostURI = 'http://f.hatena.ne.jp/atom/post';
+    my $image = $self->_get_image($param{filename} || $param{scalarref})
+        or return $self->error($self->errstr);
 
-	return $self->SUPER::createEntry($PostURI, $entry);
+    my $entry = WebService::Hatena::Fotolife::Entry->new;
+    $entry->title($self->_encode($param{title}));
+    $entry->content(${$image->{content}});
+    $entry->content->type($image->{content_type});
+    $entry->generator($param{generator} || __PACKAGE__);
+
+    if ($param{folder}) {
+        my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
+        $entry->set($dc, 'subject', $param{folder});
+    }
+
+    $self->SUPER::createEntry($PostURI, $entry);
 }
 
 sub updateEntry {
-	my ($self, $EditURI, %param) = @_;
+    my ($self, $EditURI, %param) = @_;
 
-	return $self->error('EditURI and title are both required')
-		unless $EditURI || $param{title};
+    return $self->error('EditURI and title are both required')
+        unless $EditURI || $param{title};
 
-	my $entry = XML::Atom::Entry->new;
-	   $entry->title($self->_encode($param{title}));
+    my $entry = WebService::Hatena::Fotolife::Entry->new;
+    $entry->title($self->_encode($param{title}));
+    $entry->generator($param{generator} || __PACKAGE__);
 
-	return $self->SUPER::updateEntry($EditURI, $entry);
+    if ($param{folder}) {
+        my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
+        $entry->set($dc, 'subject', $param{folder});
+    }
+
+    $self->SUPER::updateEntry($EditURI, $entry);
 }
 
 sub getFeed {
-	my $self = shift;
-	my $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
+    my $self = shift;
+    my $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
 
-	return $self->SUPER::getFeed($FeedURI);
+    $self->SUPER::getFeed($FeedURI);
 }
 
 sub _get_image {
-	my ($self, $image_source) = @_;
-	my $image;
+    my ($self, $image_source) = @_;
+    my $image;
 
-	if (ref $image_source eq 'SCALAR') {
-		$image = $image_source;
-	} else {
-		$image = do {
-			local $/ = undef;
-			my $fh = FileHandle->new($image_source)
-				or return $self->error("can't open $image_source: $!");
-			my $content = <$fh>;
-			\$content;
-		};
-	}
+    if (ref $image_source eq 'SCALAR') {
+        $image = $image_source;
+    } else {
+        $image = do {
+            local $/ = undef;
+            my $fh = FileHandle->new($image_source)
+                or return $self->error("can't open $image_source: $!");
+            my $content = <$fh>;
+            \$content;
+        };
+    }
 
-	my $info  = Image::Info::image_info($image);
-	return $self->error($info->{error}) if $info->{error};
+    my $info  = Image::Info::image_info($image);
+    return $self->error($info->{error}) if $info->{error};
 
-	return {content => $image, content_type => $info->{file_media_type}};
+    return {content => $image, content_type => $info->{file_media_type}};
 }
 
 sub _encode {
-	my $string = $_[1];
+    my $string = $_[1];
 
-	if ($] >= 5.008) {
-		require Encode;
-		$string = Encode::encode('utf8', $string)
-			unless Encode::is_utf8($string);
-	}
+    if ($] >= 5.008) {
+        require Encode;
+        $string = Encode::encode('utf8', $string)
+            unless Encode::is_utf8($string);
+    }
 
-	return $string;
+    $string;
 }
 
 1;
@@ -98,7 +108,8 @@ __END__
 
 =head1 NAME
 
-WebService::Hatena::Fotolife - Interface to the Hatena::Fotolife AtomAPI
+WebService::Hatena::Fotolife - A Perl interface to the
+Hatena::Fotolife Atom API
 
 =head1 SYNOPSIS
 
@@ -108,20 +119,25 @@ WebService::Hatena::Fotolife - Interface to the Hatena::Fotolife AtomAPI
      $fotolife->username($username);
      $fotolife->password($password);
 
-  # create a new entry
+  # create a new entry with image filename
   my $EditURI = $fotolife->createEntry(
       title    => $title,
       filename => $filename,
+      folder   => $folder,
   );
 
-  # or pass in the image source as a scalarref
+  # or specify the image source as a scalarref
   my $EditURI = $fotolife->createEntry(
       title     => $title,
       scalarref => \$image_content,
+      folder    => $folder,
   );
 
   # update the entry
   $fotolife->updateEntry($EditURI, title => $title);
+
+  # delete the entry
+  $fotolife->updateEntry($EditURI);
 
   # retrieve the feed
   my $feed = $fotolife->getFeed;
@@ -130,9 +146,11 @@ WebService::Hatena::Fotolife - Interface to the Hatena::Fotolife AtomAPI
 
 =head1 DESCRIPTION
 
-WebService::Hatena::Fotolife provides an interface to the Hatena::Fotolife AtomAPI.
+WebService::Hatena::Fotolife provides an interface to the
+Hatena::Fotolife Atom API.
 
-This module is a subclass of L<XML::Atom::Client>, so see also the documentation of the baseclass for more usage.
+This module is a subclass of L<XML::Atom::Client>, so see also the
+documentation of the base class for more usage.
 
 =head1 METHODS
 
@@ -144,29 +162,56 @@ This module is a subclass of L<XML::Atom::Client>, so see also the documentation
 
 Creates and returns a WebService::Hatena::Fotolife object.
 
-This method behaves the same as baseclass's one except for setting the UserAgent string "WebService::Hatena::Fotolife/$VERSION".
-
 =back
 
 =head2 createEntry ( I<%param> )
 
 =over 4
 
+  # passing an image by filename
   my $EditURI = $fotolife->createEntry(
       title    => $title,
       filename => $filename,
   );
 
-or
+  # or...
 
+  # a scalar ref to the image content
   my $EditURI = $fotolife->createEntry(
       title     => $title,
       scalarref => $scalarref,
   );
 
-Uploads the given image with I<$title> to Hatena::Fotolife. Pass in the image source as a filename or a scalarref to the image content.
+Uploads given image to Hatena::Fotolife. Pass in the image source as a
+filename or a scalarref to the image content. There're some more
+options described below:
 
-This method overrides the baseclass's I<createEntry> method.
+=over 4
+
+=item * title
+
+Title of the image.
+
+=item * filename
+
+Local filename of the image.
+
+=item * scalarref
+
+Scalar reference to the image content itself.
+
+=item * folder
+
+Place, called "folder" in Hatena::Fotolife, you want to upload your
+image.
+
+=item * generator
+
+Specifies generator string. Hatena::Fotolife can handle your request
+along with it. If not passed, the package name of this modules is
+used.
+
+=back
 
 =back
 
@@ -174,11 +219,14 @@ This method overrides the baseclass's I<createEntry> method.
 
 =over 4
 
-  my $EditURI = $fotolife->updateEntry($EditURI, title => $title);
+  my $EditURI = $fotolife->updateEntry(
+      $EditURI,
+      title => $title,
+  );
 
-Updates the title of the entry at I<$EditURI> with the given I<$title>. Hatena::Fotolife AtomAPI currently doesn't support to update the image content directly by this method.
-
-This method overrides the baseclass's I<updateEntry> method.
+Updates the title of the entry at I<$EditURI> with given
+options. Hatena::Fotolife Atom API currently doesn't support to update
+the image content directly via Atom API.
 
 =back
 
@@ -188,9 +236,8 @@ This method overrides the baseclass's I<updateEntry> method.
 
   my $feed = $fotolife->getFeed;
 
-Retrieves the feed. The count of the entries the I<$feed> includes depends on your configuration of Hatena::Fotolife.
-
-This method overrides the beseclass's I<getFeed> method.
+Retrieves the feed. The count of the entries the I<$feed> includes
+depends on your configuration of Hatena::Fotolife.
 
 =back
 
@@ -202,15 +249,13 @@ This method overrides the beseclass's I<getFeed> method.
 
 =head2 getEntry ( I<$EditURI> )
 
+=head2 deleteEntry ( I<$EditURI> )
+
 =over 4
 
-See the documentation of the baseclass L<XML::Atom::Client>.
+See the documentation of the base class, L<XML::Atom::Client>.
 
 =back
-
-=head1 CAVEAT
-
-This module is now in beta version, so the interface it provides may be changed later.
 
 =head1 SEE ALSO
 
@@ -234,8 +279,9 @@ Kentaro Kuribayashi, E<lt>kentarok@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2005 by Kentaro Kuribayashi
+Copyright (C) 2005 - 2009 by Kentaro Kuribayashi
 
-This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
 
 =cut

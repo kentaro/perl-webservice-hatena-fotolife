@@ -1,17 +1,13 @@
-$Id: README 8 2005-03-28 13:13:27Z kentaro $
-
-WebService-Hatena-Fotolife version 0.01
+WebService-Hatena-Fotolife version 0.02
 =======================================
 
 DESCRIPTION
 
-WebService::Hatena::Fotolife provides an interface to the Hatena::Fotolife AtomAPI.
+WebService::Hatena::Fotolife provides an interface to the
+Hatena::Fotolife AtomAPI.
 
-This module is a subclass of L<XML::Atom::Client>, so see also the documentation of the baseclass for more usage.
-
-CAVEAT
-
-This module is now in beta version, so the interface it provides may be changed later.
+This module is a subclass of L<XML::Atom::Client>, so see also the
+documentation of the base class for more usage.
 
 INSTALLATION
 

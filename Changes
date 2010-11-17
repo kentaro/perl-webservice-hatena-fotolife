@@ -1,6 +1,7 @@
-$Id: Changes 9 2005-03-28 13:13:38Z kentaro $
-
 Revision history for Perl extension WebService::Hatena::Fotolife.
 
+0.02  Wed Jul 15 2009
+      - supported folder and generator option.
+
 0.01  Sun Mar 28 2005
-	- initial release
+      - initial release
