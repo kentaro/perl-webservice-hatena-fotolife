@@ -1,5 +1,5 @@
 package WebService::Hatena::Fotolife;
-use 5.008_001;
+use 5.008001;
 use base qw(XML::Atom::Client);
 
 use strict;
