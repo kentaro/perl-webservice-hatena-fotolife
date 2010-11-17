@@ -1,22 +1,31 @@
 package WebService::Hatena::Fotolife;
 use 5.008_001;
+use base qw(XML::Atom::Client);
+
 use strict;
 use warnings;
 use FileHandle;
+use Encode qw(encode_utf8 is_utf8);
 use Image::Info qw(image_info);
+
 use WebService::Hatena::Fotolife::Entry;
 
-use base qw(XML::Atom::Client);
+our $VERSION = '0.03';
+our $PostURI = 'http://f.hatena.ne.jp/atom/post';
+our $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
 
-our $VERSION = '0.02';
+use constant GEORSS => q<http://www.georss.org/georss>;
 
 sub new {
-    my $class = shift;
-    my $self  = $class->SUPER::new
+    my $class   = shift;
+    my %params  = @_;
+    my $headers = delete $params{headers} || [];
+    my $self    = $class->SUPER::new(%params)
         or return $class->error($class->SUPER::errstr);
 
-    $self->{ua}->agent("WebService::Hatena::Fotolife/$VERSION");
-    return $self;
+    $self->{headers} = $headers;
+    $self->{ua}->agent(__PACKAGE__."/$VERSION");
+    $self;
 }
 
 sub createEntry {
@@ -25,19 +34,23 @@ sub createEntry {
     return $self->error('title and image source are both required')
         unless $param{title} || grep {!$_} @param{qw(filename scalarref)};
 
-    my $PostURI = 'http://f.hatena.ne.jp/atom/post';
     my $image = $self->_get_image($param{filename} || $param{scalarref})
         or return $self->error($self->errstr);
 
     my $entry = WebService::Hatena::Fotolife::Entry->new;
-    $entry->title($self->_encode($param{title}));
-    $entry->content(${$image->{content}});
-    $entry->content->type($image->{content_type});
-    $entry->generator($param{generator} || __PACKAGE__);
+       $entry->title($param{title});
+       $entry->content(${$image->{content}});
+       $entry->content->type($image->{content_type});
+       $entry->generator($param{generator} || __PACKAGE__);
 
     if ($param{folder}) {
         my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
         $entry->set($dc, 'subject', $param{folder});
+    }
+
+    if ($param{lat} and $param{lon}) {
+        my $georss = XML::Atom::Namespace->new(georss => GEORSS);
+        $entry->set($georss, 'point', $param{lat} . ' ' . $param{lon});
     }
 
     $self->SUPER::createEntry($PostURI, $entry);
@@ -50,22 +63,51 @@ sub updateEntry {
         unless $EditURI || $param{title};
 
     my $entry = WebService::Hatena::Fotolife::Entry->new;
-    $entry->title($self->_encode($param{title}));
-    $entry->generator($param{generator} || __PACKAGE__);
+       $entry->title($param{title});
+       $entry->generator($param{generator} || __PACKAGE__);
 
     if ($param{folder}) {
         my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
         $entry->set($dc, 'subject', $param{folder});
     }
 
+    if ($param{lat} or $param{lon}) {
+        my $georss = XML::Atom::Namespace->new(georss => GEORSS);
+        $entry->set($georss, 'point', $param{lat} . ' ' . $param{lon});
+    }
+
     $self->SUPER::updateEntry($EditURI, $entry);
+}
+
+sub munge_request {
+    my $self    = shift;
+    my $req     = shift;
+    my $headers = [@{ $self->{headers} }];
+
+    $self->SUPER::munge_request($req);
+    while (my ($key, $value) = splice @$headers, 0, 2) {
+        $req->header($key => $value);
+    }
+
+    $req;
+}
+
+sub munge_response {
+    my $self = shift;
+    my $res  = shift;
+
+    my $status = $res->header('Status');
+    if ($status and $status =~ s/^(\d+)\s+(?=.+)//) {
+        $res->code($1);
+        $res->message($status);
+    }
+
+    $self->SUPER::munge_response($res, @_);
 }
 
 sub getFeed {
     my $self = shift;
-    my $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
-
-    $self->SUPER::getFeed($FeedURI);
+       $self->SUPER::getFeed($FeedURI);
 }
 
 sub _get_image {
@@ -74,7 +116,8 @@ sub _get_image {
 
     if (ref $image_source eq 'SCALAR') {
         $image = $image_source;
-    } else {
+    }
+    else {
         $image = do {
             local $/ = undef;
             my $fh = FileHandle->new($image_source)
@@ -85,21 +128,13 @@ sub _get_image {
     }
 
     my $info  = Image::Info::image_info($image);
-    return $self->error($info->{error}) if $info->{error};
+    return $self->error($info->{error})
+        if $info->{error} and $info->{error} !~ /short read/;
 
-    return {content => $image, content_type => $info->{file_media_type}};
-}
-
-sub _encode {
-    my $string = $_[1];
-
-    if ($] >= 5.008) {
-        require Encode;
-        $string = Encode::encode('utf8', $string)
-            unless Encode::is_utf8($string);
-    }
-
-    $string;
+    +{
+        content      => $image,
+        content_type => $info->{file_media_type},
+    };
 }
 
 1;
@@ -137,7 +172,7 @@ Hatena::Fotolife Atom API
   $fotolife->updateEntry($EditURI, title => $title);
 
   # delete the entry
-  $fotolife->updateEntry($EditURI);
+  $fotolife->deleteEntry($EditURI);
 
   # retrieve the feed
   my $feed = $fotolife->getFeed;
@@ -165,8 +200,6 @@ Creates and returns a WebService::Hatena::Fotolife object.
 =back
 
 =head2 createEntry ( I<%param> )
-
-=over 4
 
   # passing an image by filename
   my $EditURI = $fotolife->createEntry(
@@ -213,11 +246,7 @@ used.
 
 =back
 
-=back
-
 =head2 updateEntry ( I<$EditURI>, I<%param> )
-
-=over 4
 
   my $EditURI = $fotolife->updateEntry(
       $EditURI,
@@ -228,18 +257,12 @@ Updates the title of the entry at I<$EditURI> with given
 options. Hatena::Fotolife Atom API currently doesn't support to update
 the image content directly via Atom API.
 
-=back
-
 =head2 getFeed
-
-=over 4
 
   my $feed = $fotolife->getFeed;
 
 Retrieves the feed. The count of the entries the I<$feed> includes
 depends on your configuration of Hatena::Fotolife.
-
-=back
 
 =head2 use_soap ( I<[ 0 | 1 ]> )
 
@@ -251,11 +274,7 @@ depends on your configuration of Hatena::Fotolife.
 
 =head2 deleteEntry ( I<$EditURI> )
 
-=over 4
-
 See the documentation of the base class, L<XML::Atom::Client>.
-
-=back
 
 =head1 SEE ALSO
 
@@ -279,7 +298,7 @@ Kentaro Kuribayashi, E<lt>kentarok@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2005 - 2009 by Kentaro Kuribayashi
+Copyright (C) 2005 - 2010 by Kentaro Kuribayashi
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
