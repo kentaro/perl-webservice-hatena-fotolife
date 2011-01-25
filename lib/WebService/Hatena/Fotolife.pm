@@ -10,7 +10,7 @@ use Image::Info qw(image_info);
 
 use WebService::Hatena::Fotolife::Entry;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 our $PostURI = 'http://f.hatena.ne.jp/atom/post';
 our $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
 
@@ -41,7 +41,7 @@ sub createEntry {
        $entry->title($param{title});
        $entry->content(${$image->{content}});
        $entry->content->type($image->{content_type});
-       $entry->generator($param{generator} || __PACKAGE__);
+       $entry->generator($param{generator}) if $param{generator};
 
     if ($param{folder}) {
         my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
@@ -64,7 +64,7 @@ sub updateEntry {
 
     my $entry = WebService::Hatena::Fotolife::Entry->new;
        $entry->title($param{title});
-       $entry->generator($param{generator} || __PACKAGE__);
+       $entry->generator($param{generator}) if $param{generator};
 
     if ($param{folder}) {
         my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
@@ -241,8 +241,7 @@ image.
 =item * generator
 
 Specifies generator string. Hatena::Fotolife can handle your request
-along with it. If not passed, the package name of this modules is
-used.
+along with it. See L<http://f.hatena.ne.jp/my/config> for detail.
 
 =back
 

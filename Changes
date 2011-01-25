@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Hatena::Fotolife.
 
+0.04  Tue Jan 11 2011
+      - generator parameter now must be specified explicitely, if you need it.
+
 0.03  Wed Nov 17 2010
       - added geo support (thanks to id:wakabatan)
 
