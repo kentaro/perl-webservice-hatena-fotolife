@@ -10,7 +10,7 @@ use Image::Info qw(image_info);
 
 use WebService::Hatena::Fotolife::Entry;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 our $PostURI = 'http://f.hatena.ne.jp/atom/post';
 our $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
 
@@ -36,22 +36,7 @@ sub createEntry {
 
     my $image = $self->_get_image($param{filename} || $param{scalarref})
         or return $self->error($self->errstr);
-
-    my $entry = WebService::Hatena::Fotolife::Entry->new;
-       $entry->title($param{title});
-       $entry->content(${$image->{content}});
-       $entry->content->type($image->{content_type});
-       $entry->generator($param{generator}) if $param{generator};
-
-    if ($param{folder}) {
-        my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
-        $entry->set($dc, 'subject', $param{folder});
-    }
-
-    if ($param{lat} and $param{lon}) {
-        my $georss = XML::Atom::Namespace->new(georss => GEORSS);
-        $entry->set($georss, 'point', $param{lat} . ' ' . $param{lon});
-    }
+    my $entry = $self->_make_entry(create => +{ %param, image => $image });
 
     $self->SUPER::createEntry($PostURI, $entry);
 }
@@ -62,19 +47,7 @@ sub updateEntry {
     return $self->error('EditURI and title are both required')
         unless $EditURI || $param{title};
 
-    my $entry = WebService::Hatena::Fotolife::Entry->new;
-       $entry->title($param{title});
-       $entry->generator($param{generator}) if $param{generator};
-
-    if ($param{folder}) {
-        my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
-        $entry->set($dc, 'subject', $param{folder});
-    }
-
-    if ($param{lat} or $param{lon}) {
-        my $georss = XML::Atom::Namespace->new(georss => GEORSS);
-        $entry->set($georss, 'point', $param{lat} . ' ' . $param{lon});
-    }
+    my $entry = $self->_make_entry(update => \%param);
 
     $self->SUPER::updateEntry($EditURI, $entry);
 }
@@ -108,6 +81,43 @@ sub munge_response {
 sub getFeed {
     my $self = shift;
        $self->SUPER::getFeed($FeedURI);
+}
+
+sub _make_entry {
+    my ($self, $method, $param) = @_;
+    $param ||= {};
+
+    my $entry = WebService::Hatena::Fotolife::Entry->new;
+       $entry->title($param->{title});
+       $entry->generator($param->{generator}) if defined $param->{generator};
+
+    if ($method eq 'create') {
+        my $image = $param->{image};
+        $entry->content(${$image->{content}});
+        $entry->content->type($image->{content_type});
+    }
+
+    if (defined $param->{folder}) {
+        my $dc = XML::Atom::Namespace->new(dc => 'http://purl.org/dc/elements/1.1/');
+        $entry->set($dc, 'subject', $param->{folder});
+    }
+
+    if (defined $param->{lat} && defined $param->{lon}) {
+        my $georss = XML::Atom::Namespace->new(georss => GEORSS);
+        $entry->set($georss, 'point', $param->{lat} . ' ' . $param->{lon});
+    }
+
+    if ($param->{hatena} && ref $param->{hatena} eq 'HASH') {
+        my $hatena = XML::Atom::Namespace->new(
+            hatena => 'http://www.hatena.ne.jp/info/xmlns#'
+        );
+
+        for my $key (keys %{$param->{hatena}}) {
+            $entry->set($hatena, $key, $param->{hatena}{$key});
+        }
+    }
+
+    $entry;
 }
 
 sub _get_image {
