@@ -141,9 +141,14 @@ sub _get_image {
     return $self->error($info->{error})
         if $info->{error} and $info->{error} !~ /short read/;
 
+    my $mime = $info->{file_media_type};
+    if (ref $mime eq 'ARRAY') {
+        $mime = $mime->[0];
+    }
+
     +{
         content      => $image,
-        content_type => $info->{file_media_type},
+        content_type => $mime,
     };
 }
 
