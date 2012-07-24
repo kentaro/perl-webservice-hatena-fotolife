@@ -10,7 +10,7 @@ use Image::Info qw(image_info);
 
 use WebService::Hatena::Fotolife::Entry;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 our $PostURI = 'http://f.hatena.ne.jp/atom/post';
 our $FeedURI = 'http://f.hatena.ne.jp/atom/feed';
 

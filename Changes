@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Hatena::Fotolife.
 
+0.06  Tue Jul 24 2012
+      - fixed a bug when file_media_type contains arrayref of mime types
+
 0.05  Wed Feb 01 2012
       - added support for hatena:* namespace.
 
