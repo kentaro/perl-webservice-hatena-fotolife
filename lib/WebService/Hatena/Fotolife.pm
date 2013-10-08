@@ -20,13 +20,31 @@ sub new {
     my $class   = shift;
     my %params  = @_;
     my $headers = delete $params{headers} || [];
+    my $consumer_key = delete $params{consumer_key};
+    my $consumer_secret = delete $params{consumer_secret};
+    my $access_token = delete $params{access_token};
+    my $access_token_secret = delete $params{access_token_secret};
     my $self    = $class->SUPER::new(%params)
         or return $class->error($class->SUPER::errstr);
+
+    $self->{consumer_key} = $consumer_key;
+    $self->{consumer_secret} = $consumer_secret;
+    $self->{access_token} = $access_token;
+    $self->{access_token_secret} = $access_token_secret;
 
     $self->{headers} = $headers;
     $self->{ua}->agent(__PACKAGE__."/$VERSION");
     $self;
 }
+
+sub use_oauth {
+    return defined $_[0]->access_token;
+}
+
+sub consumer_key { $_[0]->{consumer_key} }
+sub consumer_secret { $_[0]->{consumer_secret} }
+sub access_token { $_[0]->{access_token} }
+sub access_token_secret { $_[0]->{access_token_secret} }
 
 sub createEntry {
     my ($self, %param) = @_;
@@ -57,7 +75,25 @@ sub munge_request {
     my $req     = shift;
     my $headers = [@{ $self->{headers} }];
 
-    $self->SUPER::munge_request($req);
+    if ($self->use_oauth) {
+        require OAuth::Lite::Consumer;
+        require OAuth::Lite::Token;
+        require OAuth::Lite::AuthMethod;
+
+        my $consumer = OAuth::Lite::Consumer->new(
+            consumer_key => $self->consumer_key,
+            consumer_secret => $self->consumer_secret,
+            auth_method => OAuth::Lite::AuthMethod::URL_QUERY(),
+        );
+        my $access_token = OAuth::Lite::Token->new(
+            token => $self->access_token,
+            secret => $self->access_token_secret,
+        );
+        my $url = $req->uri;
+        $req->uri($url . '?' . $consumer->gen_auth_query($req->method, $url, $access_token, {}));
+    } else {
+        $self->SUPER::munge_request($req);
+    }
     while (my ($key, $value) = splice @$headers, 0, 2) {
         $req->header($key => $value);
     }
@@ -165,9 +201,16 @@ Hatena::Fotolife Atom API
 
   use WebService::Hatena::Fotolife;
 
-  my $fotolife = WebService::Hatena::Fotolife->new;
+  my $fotolife = WebService::Hatena::Fotolife->new(
+      consumer_key => $consumer_key,
+      consumer_secret => $consumer_secret,
+      access_token => $token,
+      access_token_secret => $token_secret,
+  );
+
+  # WSSE
      $fotolife->username($username);
-     $fotolife->password($password);
+     $fotolife->password($api_password);
 
   # create a new entry with image filename
   my $EditURI = $fotolife->createEntry(
@@ -204,13 +247,23 @@ documentation of the base class for more usage.
 
 =head1 METHODS
 
-=head2 new
+=head2 new ( I<%param> )
 
 =over 4
 
-  my $fotolife = WebService::Hatena::Fotolife->new;
+  my $fotolife = WebService::Hatena::Fotolife->new(
+      consumer_key => $consumer_key,
+      consumer_secret => $consumer_secret,
+      access_token => $token,
+      access_token_secret => $token_secret,
+  );
 
-Creates and returns a WebService::Hatena::Fotolife object.
+Creates and returns a WebService::Hatena::Fotolife object with your
+OAuth application's tokens and the user's OAuth access tokens.
+
+Instead of these four tokens, WSSE user name and API password can be
+specified by invoking the C<username> and C<password> methods.
+However, new applications should not use WSSE.
 
 =back
 
@@ -290,6 +343,9 @@ depends on your configuration of Hatena::Fotolife.
 
 See the documentation of the base class, L<XML::Atom::Client>.
 
+Note that C<username> and C<password> are ignored if OAuth
+authorization is used.
+
 =head1 SEE ALSO
 
 =over 4
@@ -300,7 +356,11 @@ http://f.hatena.ne.jp/
 
 =item * Hatena::Fotolife API documentation
 
-http://d.hatena.ne.jp/keyword/%A4%CF%A4%C6%A4%CA%A5%D5%A5%A9%A5%C8%A5%E9%A5%A4%A5%D5AtomAPI
+http://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom
+
+=item * Hatena OAuth documentation
+
+http://developer.hatena.ne.jp/ja/documents/auth/apis/oauth
 
 =item * L<XML::Atom::Client>
 
@@ -313,6 +373,8 @@ Kentaro Kuribayashi, E<lt>kentarok@gmail.comE<gt>
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2005 - 2010 by Kentaro Kuribayashi
+
+Copyright 2013 Hatena <http://www.hatena.ne.jp/company/>.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
