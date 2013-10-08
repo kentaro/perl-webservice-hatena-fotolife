@@ -4,7 +4,6 @@ use base qw(XML::Atom::Client);
 
 use strict;
 use warnings;
-use Carp qw(carp);
 use FileHandle;
 use Encode qw(encode_utf8 is_utf8);
 use Image::Info qw(image_info);
@@ -32,10 +31,6 @@ sub new {
     $self->{consumer_secret} = $consumer_secret;
     $self->{access_token} = $access_token;
     $self->{access_token_secret} = $access_token_secret;
-
-    unless (defined $self->{access_token}) {
-        carp "Use of WSSE is deprecated";
-    }
 
     $self->{headers} = $headers;
     $self->{ua}->agent(__PACKAGE__."/$VERSION");
@@ -213,9 +208,9 @@ Hatena::Fotolife Atom API
       access_token_secret => $token_secret,
   );
 
-  # WSSE (deprecated)
+  # WSSE
      $fotolife->username($username);
-     $fotolife->password($password);
+     $fotolife->password($api_password);
 
   # create a new entry with image filename
   my $EditURI = $fotolife->createEntry(
@@ -266,10 +261,9 @@ documentation of the base class for more usage.
 Creates and returns a WebService::Hatena::Fotolife object with your
 OAuth application's tokens and the user's OAuth access tokens.
 
-Instead of these four tokens, WSSE user name and password can be
+Instead of these four tokens, WSSE user name and API password can be
 specified by invoking the C<username> and C<password> methods.
-However, new applications should not use WSSE.  Hatena has announced
-that WSSE support will be removed in due course.
+However, new applications should not use WSSE.
 
 =back
 
@@ -363,6 +357,10 @@ http://f.hatena.ne.jp/
 =item * Hatena::Fotolife API documentation
 
 http://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom
+
+=item * Hatena OAuth documentation
+
+http://developer.hatena.ne.jp/ja/documents/auth/apis/oauth
 
 =item * L<XML::Atom::Client>
 
