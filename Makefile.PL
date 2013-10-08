@@ -7,6 +7,7 @@ all_from 'lib/WebService/Hatena/Fotolife.pm';
 
 requires 'XML::Atom' => '0.11';
 requires 'Image::Info';
+requires 'OAuth::Lite';
 
 test_requires 'Test::More' => 0.96;
 
